@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <!-- Background -->
+  <rect width="192" height="192" rx="32" ry="32" fill="#0f172a"/>
+
+  <!-- Stylized "P" letter -->
+  <text x="52" y="128" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="120" fill="#3b82f6">P</text>
+
+  <!-- Small chart line overlay (bottom-right area) -->
+  <polyline
+    points="90,130 110,115 125,125 145,95"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Chart dot at end -->
+  <circle cx="145" cy="95" r="4" fill="#60a5fa"/>
+
+  <!-- Subtle upward arrow at chart end -->
+  <polyline
+    points="139,95 145,87 151,95"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
