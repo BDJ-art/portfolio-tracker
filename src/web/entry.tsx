@@ -12,7 +12,7 @@ import DebtsPage from '@renderer/pages/DebtsPage';
 import InsightsPage from '@renderer/pages/InsightsPage';
 import CashFlowPage from '@renderer/pages/CashFlowPage';
 import SettingsPage from '@renderer/pages/SettingsPage';
-import '@renderer/styles/index.css';
+import './styles.css';
 import { createWebApi } from './data/webApi';
 import { startScheduler } from './services/priceRefresh';
 
