@@ -1,4 +1,4 @@
-import { getAll, getById, put, remove } from './db';
+import { getAll, getById, put, remove, clearStore } from './db';
 import { computeInsights } from '../services/insightsEngine';
 import { parseRobinhoodCsv, parseCryptoCsv } from '../services/csvParser';
 import type { ElectronAPI } from '../../renderer/types/ipc';
@@ -242,6 +242,57 @@ export function createWebApi(): ElectronAPI {
       const systemPrompt = `You are a personal financial advisor analyzing a user's complete portfolio. Be specific, actionable, and personalized — reference their actual holdings by name, ticker, and dollar amounts. Structure your response with clear sections using markdown headers.\n\nThe data includes their age (if provided), all assets, debts, and monthly cash flow (income, expenses, free cash). Use their age to tailor advice for their life stage:\n- Under 30: Can afford more risk, emphasize growth, maximize retirement contributions early for compounding\n- 30-45: Balance growth with stability, ensure adequate insurance and emergency fund, plan for major expenses\n- 45-60: Shift toward capital preservation, catch-up retirement contributions, reduce high-risk positions\n- Over 60: Focus on income generation, minimize volatility, plan for withdrawal strategies\n\nYour analysis should cover:\n1. **Portfolio Overview** — Quick health check: net worth, monthly cash flow, savings rate, and how they compare for their age\n2. **Asset Allocation Assessment** — Are they properly diversified for their age? What's overweight/underweight?\n3. **Cash Flow Analysis** — How is their free cash being deployed? Are they saving enough? Where can they optimize spending?\n4. **Debt Strategy** — Should they pay down debt or invest? Which debts to prioritize and why.\n5. **Investment Recommendations** — Where should they invest next? Be specific about asset classes, sectors, or strategies appropriate for their age and situation.\n6. **Risk Warnings** — Red flags, concentration risks, or urgent issues to address\n7. **Action Items** — Top 3-5 concrete next steps, ranked by priority\n\nBe direct and honest. If something is risky, say so clearly. Use dollar amounts and percentages from their actual data.`;
 
       return `${systemPrompt}\n\nHere is my complete financial portfolio as of ${new Date().toLocaleDateString()}:\n\n\`\`\`json\n${JSON.stringify(snapshot, null, 2)}\n\`\`\`\n\nPlease analyze my portfolio and give me personalized financial advice.`;
+    },
+
+    // Data Transfer
+    exportData: async () => {
+      const [realEstate, stocks, crypto, retirement, debts, cashFlowItems, snapshots] = await Promise.all([
+        realEstateOps.getAll(),
+        stockOps.getAll(),
+        cryptoOps.getAll(),
+        retirementOps.getAll(),
+        debtOps.getAll(),
+        cashFlowOps.getAll(),
+        getAll<{ id: string; date: string }>('snapshots'),
+      ]);
+      const settings = await getAll<{ key: string; value: string }>('user_settings');
+      const settingsObj: Record<string, string> = {};
+      for (const s of settings) settingsObj[s.key] = s.value;
+      return { version: 1, exportedAt: new Date().toISOString(), realEstate, stocks, crypto, retirement, debts, cashFlow: cashFlowItems, snapshots, settings: settingsObj };
+    },
+    importData: async (data: Record<string, unknown>) => {
+      const d = data as {
+        realEstate?: Array<Record<string, unknown>>;
+        stocks?: Array<Record<string, unknown>>;
+        crypto?: Array<Record<string, unknown>>;
+        retirement?: Array<Record<string, unknown>>;
+        debts?: Array<Record<string, unknown>>;
+        cashFlow?: Array<Record<string, unknown>>;
+        snapshots?: Array<Record<string, unknown>>;
+        settings?: Record<string, string>;
+      };
+      // Clear all existing data first
+      await clearStore('real_estate');
+      await clearStore('stocks');
+      await clearStore('crypto');
+      await clearStore('retirement');
+      await clearStore('debts');
+      await clearStore('cash_flow');
+      await clearStore('snapshots');
+      await clearStore('user_settings');
+      // Insert imported data
+      for (const item of d.realEstate ?? []) await put('real_estate', item);
+      for (const item of d.stocks ?? []) await put('stocks', item);
+      for (const item of d.crypto ?? []) await put('crypto', item);
+      for (const item of d.retirement ?? []) await put('retirement', item);
+      for (const item of d.debts ?? []) await put('debts', item);
+      for (const item of d.cashFlow ?? []) await put('cash_flow', item);
+      for (const item of d.snapshots ?? []) await put('snapshots', item);
+      if (d.settings) {
+        for (const [key, value] of Object.entries(d.settings)) {
+          await put('user_settings', { key, value });
+        }
+      }
     },
 
     // Events

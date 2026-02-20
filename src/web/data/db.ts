@@ -97,6 +97,17 @@ export async function remove(storeName: string, id: string): Promise<void> {
   });
 }
 
+export async function clearStore(storeName: string): Promise<void> {
+  const db = await getDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getByIndex<T>(storeName: string, indexName: string, value: IDBValidKey): Promise<T[]> {
   const db = await getDb();
   return new Promise((resolve, reject) => {

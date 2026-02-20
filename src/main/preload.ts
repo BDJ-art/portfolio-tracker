@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('api', {
   analyzePortfolio: () => ipcRenderer.invoke('ai:analyze'),
   getAnalysisHistory: () => ipcRenderer.invoke('ai:history'),
   getPortfolioPrompt: () => ipcRenderer.invoke('ai:prompt'),
+  exportData: () => ipcRenderer.invoke('data:export'),
+  importData: (data: Record<string, unknown>) => ipcRenderer.invoke('data:import', data),
 
   // Events
   onPricesUpdated: (callback: () => void) => {

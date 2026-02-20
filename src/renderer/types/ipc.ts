@@ -85,6 +85,10 @@ export interface ElectronAPI {
   getAnalysisHistory: () => Promise<AiAnalysis[]>;
   getPortfolioPrompt: () => Promise<string>;
 
+  // Data Transfer
+  exportData: () => Promise<Record<string, unknown>>;
+  importData: (data: Record<string, unknown>) => Promise<void>;
+
   // Events
   onPricesUpdated: (callback: () => void) => () => void;
 }

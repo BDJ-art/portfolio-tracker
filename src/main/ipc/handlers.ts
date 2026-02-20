@@ -7,6 +7,7 @@ import { getAllDebts, createDebt, updateDebt, deleteDebt } from '../database/rep
 import { getAllCashFlow, createCashFlow, updateCashFlow, deleteCashFlow } from '../database/repositories/cashFlowRepo';
 import { getAllSnapshots } from '../database/repositories/snapshotRepo';
 import { getSetting, setSetting, getAllSettings } from '../database/repositories/settingsRepo';
+import { getDatabase } from '../database/connection';
 import { searchCoins } from '../services/cryptoService';
 import { generateInsights } from '../services/insightsEngine';
 import { openCsvDialog, parseRobinhoodCsv, parseRobinhoodPdf, parseCryptoCsv } from '../services/csvImporter';
@@ -132,5 +133,112 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ai:prompt', async () => {
     const { getPortfolioPrompt } = await import('../services/aiAdvisor');
     return getPortfolioPrompt();
+  });
+
+  // Data Export
+  ipcMain.handle('data:export', () => {
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      realEstate: getAllRealEstate(),
+      stocks: getAllStocks(),
+      crypto: getAllCrypto(),
+      retirement: getAllRetirement(),
+      debts: getAllDebts(),
+      cashFlow: getAllCashFlow(),
+      snapshots: getAllSnapshots(),
+      settings: getAllSettings(),
+    };
+  });
+
+  // Data Import
+  ipcMain.handle('data:import', (_e, importData: Record<string, unknown>) => {
+    const d = importData as {
+      realEstate?: Array<Record<string, unknown>>;
+      stocks?: Array<Record<string, unknown>>;
+      crypto?: Array<Record<string, unknown>>;
+      retirement?: Array<Record<string, unknown>>;
+      debts?: Array<Record<string, unknown>>;
+      cashFlow?: Array<Record<string, unknown>>;
+      snapshots?: Array<Record<string, unknown>>;
+      settings?: Record<string, string>;
+    };
+
+    const db = getDatabase();
+    db.transaction(() => {
+      // Clear all tables
+      db.prepare('DELETE FROM real_estate').run();
+      db.prepare('DELETE FROM stocks').run();
+      db.prepare('DELETE FROM crypto').run();
+      db.prepare('DELETE FROM retirement').run();
+      db.prepare('DELETE FROM debts').run();
+      db.prepare('DELETE FROM cash_flow').run();
+      db.prepare('DELETE FROM portfolio_snapshots').run();
+      db.prepare('DELETE FROM user_settings').run();
+
+      // Import real estate
+      if (d.realEstate?.length) {
+        const stmt = db.prepare(`INSERT INTO real_estate (id, name, address, estimated_value, mortgage_balance, monthly_mortgage_payment, purchase_price, purchase_date, property_type, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const r of d.realEstate) {
+          stmt.run(r.id, r.name, r.address, r.estimatedValue, r.mortgageBalance, r.monthlyMortgagePayment ?? null, r.purchasePrice ?? null, r.purchaseDate ?? null, r.propertyType, r.notes ?? null, r.createdAt, r.updatedAt);
+        }
+      }
+
+      // Import stocks
+      if (d.stocks?.length) {
+        const stmt = db.prepare(`INSERT INTO stocks (id, name, ticker, shares, cost_basis_per_share, current_price, last_price_update, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const s of d.stocks) {
+          stmt.run(s.id, s.name, s.ticker, s.shares, s.costBasisPerShare, s.currentPrice ?? null, s.lastPriceUpdate ?? null, s.notes ?? null, s.createdAt, s.updatedAt);
+        }
+      }
+
+      // Import crypto
+      if (d.crypto?.length) {
+        const stmt = db.prepare(`INSERT INTO crypto (id, name, coin_id, symbol, quantity, cost_basis_per_unit, current_price, last_price_update, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const c of d.crypto) {
+          stmt.run(c.id, c.name, c.coinId, c.symbol, c.quantity, c.costBasisPerUnit, c.currentPrice ?? null, c.lastPriceUpdate ?? null, c.notes ?? null, c.createdAt, c.updatedAt);
+        }
+      }
+
+      // Import retirement
+      if (d.retirement?.length) {
+        const stmt = db.prepare(`INSERT INTO retirement (id, name, account_type, institution, balance, contributions, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const r of d.retirement) {
+          stmt.run(r.id, r.name, r.accountType, r.institution, r.balance, r.contributions ?? null, r.notes ?? null, r.createdAt, r.updatedAt);
+        }
+      }
+
+      // Import debts
+      if (d.debts?.length) {
+        const stmt = db.prepare(`INSERT INTO debts (id, name, debt_type, lender, original_balance, current_balance, interest_rate, minimum_payment, monthly_payment, due_day, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const dd of d.debts) {
+          stmt.run(dd.id, dd.name, dd.debtType, dd.lender, dd.originalBalance, dd.currentBalance, dd.interestRate, dd.minimumPayment, dd.monthlyPayment ?? null, dd.dueDay ?? null, dd.notes ?? null, dd.createdAt, dd.updatedAt);
+        }
+      }
+
+      // Import cash flow
+      if (d.cashFlow?.length) {
+        const stmt = db.prepare(`INSERT INTO cash_flow (id, name, flow_type, category, amount, frequency, is_active, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const cf of d.cashFlow) {
+          stmt.run(cf.id, cf.name, cf.flowType, cf.category, cf.amount, cf.frequency, cf.isActive ? 1 : 0, cf.notes ?? null, cf.createdAt, cf.updatedAt);
+        }
+      }
+
+      // Import snapshots
+      if (d.snapshots?.length) {
+        const stmt = db.prepare(`INSERT INTO portfolio_snapshots (id, date, total_net_worth, real_estate_value, stocks_value, crypto_value, retirement_value, debts_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+        for (const s of d.snapshots) {
+          stmt.run(s.id, s.date, s.totalNetWorth, s.realEstateValue, s.stocksValue, s.cryptoValue, s.retirementValue, s.debtsValue);
+        }
+      }
+
+      // Import settings
+      if (d.settings) {
+        const stmt = db.prepare('INSERT OR REPLACE INTO user_settings (key, value) VALUES (?, ?)');
+        for (const [key, value] of Object.entries(d.settings)) {
+          stmt.run(key, value);
+        }
+      }
+    })();
   });
 }

@@ -2,17 +2,20 @@ import Header from '../components/layout/Header';
 import Card from '../components/shared/Card';
 import Button from '../components/shared/Button';
 import { usePortfolio } from '../context/PortfolioContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const isWeb = typeof navigator !== 'undefined' && !navigator.userAgent.includes('Electron');
 
 export default function SettingsPage() {
-  const { lastRefresh, refreshPrices } = usePortfolio();
+  const { lastRefresh, refreshPrices, refreshAll } = usePortfolio();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [age, setAge] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [historicalNetWorth, setHistoricalNetWorth] = useState('');
   const [historicalDate, setHistoricalDate] = useState('');
+  const [exportStatus, setExportStatus] = useState('');
+  const [importStatus, setImportStatus] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     Promise.all([
@@ -29,6 +32,48 @@ export default function SettingsPage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try { await refreshPrices(); } finally { setIsRefreshing(false); }
+  };
+
+  const handleExport = async () => {
+    try {
+      setExportStatus('Exporting...');
+      const data = await window.api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `portfolio-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportStatus('Exported!');
+      setTimeout(() => setExportStatus(''), 2000);
+    } catch {
+      setExportStatus('Export failed');
+      setTimeout(() => setExportStatus(''), 3000);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setImportStatus('Importing...');
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.version || !data.realEstate) {
+        setImportStatus('Invalid backup file');
+        setTimeout(() => setImportStatus(''), 3000);
+        return;
+      }
+      await window.api.importData(data);
+      await refreshAll();
+      setImportStatus('Imported!');
+      setTimeout(() => setImportStatus(''), 2000);
+    } catch {
+      setImportStatus('Import failed');
+      setTimeout(() => setImportStatus(''), 3000);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSaveProfile = async () => {
@@ -121,6 +166,25 @@ export default function SettingsPage() {
               <p className="text-xs text-slate-500 mt-1">Database location: AppData/Roaming/PortfolioTracker/portfolio.db</p>
             </>
           )}
+        </Card>
+        <Card title="BACKUP & RESTORE">
+          <p className="text-sm text-slate-300 mb-3">Export your portfolio as a backup file, or restore from a previous backup.</p>
+          <div className="flex flex-wrap gap-3">
+            <Button size="sm" onClick={handleExport}>
+              {exportStatus || 'Export Backup'}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+              {importStatus || 'Import Backup'}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImport}
+              className="hidden"
+            />
+          </div>
+          <p className="text-xs text-slate-500 mt-3">Import will replace all existing data. Use this to transfer data between devices or restore from a backup.</p>
         </Card>
       </div>
     </div>
