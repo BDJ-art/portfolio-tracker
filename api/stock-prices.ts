@@ -22,12 +22,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const prices: Record<string, number> = {};
 
-    const results = await yahooFinance.quote(tickers);
-    const quotesArray = Array.isArray(results) ? results : [results];
-
-    for (const quote of quotesArray) {
-      if (quote && quote.symbol && quote.regularMarketPrice != null) {
-        prices[quote.symbol] = quote.regularMarketPrice;
+    // Fetch each ticker individually for type safety
+    for (const ticker of tickers) {
+      try {
+        const quote = await yahooFinance.quote(ticker) as { symbol?: string; regularMarketPrice?: number };
+        if (quote?.symbol && quote.regularMarketPrice != null) {
+          prices[quote.symbol] = quote.regularMarketPrice;
+        }
+      } catch {
+        // Skip individual ticker failures
       }
     }
 
